@@ -144,7 +144,7 @@ jobs:
 
       - name: Update deployment manifest
         run: |
-          sed -i "s|${{IMAGE_PLACEHOLDER}}|europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}|g" k8s/deployment.yaml
+          sed -i "s|IMAGE_PLACEHOLDER|europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}|g" k8s/deployment.yaml
 
       - name: Deploy to GKE
         run: kubectl apply -f k8s/deployment.yaml
