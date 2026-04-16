@@ -36,4 +36,57 @@ jobs:
         run: mvn test
 
       - name: Build Docker image
-        run: docker build -t weather-app .
+        run: docker build -t weather-app:latest .
+
+      - name: Save Docker image
+        run: docker save weather-app:latest -o weather-app.tar
+
+      - name: Upload Docker image as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: weather-app-image
+          path: weather-app.tar
+
+  scan-and-push:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    # Only run this job on push events to the main branch, not on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: weather-app-image
+
+      - name: Load Docker image
+        run: docker load -i weather-app.tar
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'weather-app:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker to use Google Cloud credentials
+        run: gcloud auth configure-docker europe-central2-docker.pkg.dev
+
+      - name: Tag and Push Docker image
+        run: |
+          docker tag weather-app:latest europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}
+          docker push europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}
