@@ -15,6 +15,7 @@ resource "google_container_cluster" "primary" {
   location = var.gcp_region
   remove_default_node_pool = true
   initial_node_count       = 1
+  deletion_protection = false # Explicitly disable deletion protection
 }
 
 resource "google_container_node_pool" "primary_nodes" {
