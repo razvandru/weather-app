@@ -93,41 +93,58 @@ jobs:
           docker tag weather-app:latest europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}
           docker push europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}
 
-#  deploy:
-#    runs-on: ubuntu-latest
-#    needs: scan-and-push
-#    permissions:
-#      contents: 'read'
-#      id-token: 'write'
-#    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#
-#      - name: Authenticate to Google Cloud
-#        uses: google-github-actions/auth@v2
-#        with:
-#          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY }}
-#          service_account: ${{ secrets.SERVICE_ACCOUNT }}
-#
-#      - name: Set up Terraform
-#        uses: hashicorp/setup-terraform@v2
-#
-#      - name: Terraform Init
-#        working-directory: ./terraform-gcp
-#        run: terraform init
-#
-#      - name: Terraform Apply
-#        working-directory: ./terraform-gcp
-#        run: terraform apply -auto-approve -var="gcp_project_id=${{ secrets.GCP_PROJECT_ID }}"
-#
-#      - name: Get GKE credentials
-#        run: |
-#          gcloud container clusters get-credentials weather-app-gke --region europe-central2
-#
-#      - name: Update deployment manifest
-#        run: |
-#          sed -i "s|IMAGE_PLACEHOLDER|europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}|g" k8s/deployment.yaml
-#
-#      - name: Deploy to GKE
-#        run: kubectl apply -f k8s/deployment.yaml
+  provision-infrastructure:
+    runs-on: ubuntu-latest
+    needs: scan-and-push
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        working-directory: ./terraform-gcp
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform-gcp
+        run: terraform apply -auto-approve -var="gcp_project_id=${{ secrets.GCP_PROJECT_ID }}"
+
+  deploy-application:
+    runs-on: ubuntu-latest
+    needs: provision-infrastructure
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials weather-app-gke --region europe-central2
+
+      - name: Update deployment manifest
+        run: |
+          sed -i "s|${{IMAGE_PLACEHOLDER}}|europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}|g" k8s/deployment.yaml
+
+      - name: Deploy to GKE
+        run: kubectl apply -f k8s/deployment.yaml
