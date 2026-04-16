@@ -138,11 +138,10 @@ jobs:
           workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY }}
           service_account: ${{ secrets.SERVICE_ACCOUNT }}
 
-      - name: Set up Cloud SDK and install kubectl
+      - name: Set up Cloud SDK and install auth plugin
         uses: google-github-actions/setup-gcloud@v2
         with:
-          install_components:
-            - gke-gcloud-auth-plugin
+          install_components: 'gke-gcloud-auth-plugin'
 
       - name: Get GKE credentials
         run: |
