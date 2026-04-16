@@ -3,19 +3,18 @@ Configuration:
 
   Appenders:
     Console:
-      name: Stdout
-      target: SYSTEM_OUT
-      PatternLayout:
-        Pattern: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
-    Console:
-      name: Stderr
-      target: SYSTEM_ERR
-      PatternLayout:
-        Pattern: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
-      ThresholdFilter:
-        level: WARN
-        onMatch: ACCEPT
-        onMismatch: DENY
+      - name: Stdout
+        target: SYSTEM_OUT
+        PatternLayout:
+          Pattern: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+      - name: Stderr
+        target: SYSTEM_ERR
+        PatternLayout:
+          Pattern: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+        ThresholdFilter:
+          level: WARN
+          onMatch: ACCEPT
+          onMismatch: DENY
 
   Loggers:
     Root:
