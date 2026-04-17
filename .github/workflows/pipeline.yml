@@ -31,6 +31,8 @@ jobs:
           distribution: 'corretto'
 
       - name: Run unit tests
+        env:
+          OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}
         run: mvn test
 
       - name: Build Docker image
