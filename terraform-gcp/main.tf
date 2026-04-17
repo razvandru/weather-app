@@ -1,6 +1,5 @@
 terraform {
   backend "gcs" {
-    bucket  = "weather-app-493314-bucket"
     prefix  = "terraform/state"
   }
 }

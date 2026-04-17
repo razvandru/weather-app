@@ -113,7 +113,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: ./terraform-gcp
-        run: terraform init
+        run: terraform init -backend-config="bucket=${{ secrets.GCS_BUCKET_NAME }}"
 
       - name: Terraform Apply
         working-directory: ./terraform-gcp
@@ -148,6 +148,7 @@ jobs:
       - name: Update deployment manifest
         run: |
           sed -i "s|IMAGE_PLACEHOLDER|europe-central2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/weather-app/weather-app:${{ github.sha }}|g" k8s/deployment.yaml
+          sed -i "s|API_KEY_PLACEHOLDER|${{ secrets.OPENWEATHERMAP_API_KEY }}|g" k8s/deployment.yaml
 
       - name: Deploy to GKE
         run: kubectl apply -f k8s/deployment.yaml

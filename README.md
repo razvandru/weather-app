@@ -1,7 +1,7 @@
 # devops-homework
 
 Welcome, weary traveler! You have arrived at our homework for applicants of our DevOps Engineer position. Here are the instructions you should follow. Good luck, and may the odds be ever in your favour!
-
+![img.png](img.png)
 ## The app
 
 A simple Spring Boot 3 application running on Java 17. Here's a little documentation to get you started.
