@@ -16,8 +16,6 @@ on:
         type: choice
         options:
           - TST
-#          - UAT
-#          - PROD
 
 jobs:
   build-and-test:
