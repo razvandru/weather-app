@@ -1,8 +1,6 @@
-# devops-homework
+# weather-app
 
-Welcome, weary traveler! You have arrived at our homework for applicants of our DevOps Engineer position. Here are the instructions you should follow. Good luck, and may the odds be ever in your favour!
-![img.png](img.png)
-## The app
+### URL: http://34.116.222.116/
 
 A simple Spring Boot 3 application running on Java 17. Here's a little documentation to get you started.
 
@@ -10,25 +8,91 @@ Config files:
 1. `application.properties` — Spring config
 2. `log4j2-weather.yml` — logging config
 
-> **Note:** don't be afraid to edit the said two config files. On the contrary, that's part of the question.
-
 Endpoints:
 - `GET /` — calls a weather API and renders the result
+---
 
-## The exercise
+## Implementation details
 
-1. **Fork this repository.**
+This section documents the complete CI/CD and deployment architecture implemented for the Weather App.
 
-2. **Build a GitHub Actions pipeline** triggered on push and pull request to the main branch, with the following steps:
-   1. Unit tests run
-   2. Docker image built
-   3. Docker image pushed to an artifact repository
-   4. _(Absolutely optional)_ SAST/DAST scans somewhere in the pipeline
+### 1. CI/CD pipeline (`.github/workflows/pipeline.yml`)
 
-3. **Deploy the application** to any cloud provider of your choice. Calling the `/` endpoint should show the weather conditions of **Miskolc**!
-   1. _The catch:_ place a shell script in the container that runs every hour to check whether a specific env var is set in the container; if it's not, it should log to stderr. The name and value of the env var is totally up to you.
-   2. _(Optional)_ Even with the application running, there might be a suspicious error message appearing in the logs after calling the endpoint. Feel free to investigate and fix it.
+TheGitHub Actions pipeline has been set up to automate the build, test, scan, and deployment process. The pipeline is triggered on pushes and pull requests to the `master` branch and is divided into four distinct stages.
 
-Please send us the URL of **the forked repository** and the **URL of the deployed web application**.
+#### **Stage 1: `build-and-test`**
+- **Trigger:** Runs on every push and pull request.
+- **Actions:**
+  - Checks out the source code.
+  - Sets up a Java 17 environment using Amazon Corretto.
+  - Runs Maven unit tests. The `OPENWEATHERMAP_API_KEY` is passed as a secret to ensure tests that require the API key can pass.
+  - Builds a Docker image tagged as `weather-app:latest`.
+  - Saves the Docker image as a `.tar` file and uploads it as a workflow artifact (`weather-app-image`) to be used by subsequent jobs.
 
-Thank you!
+#### **Stage 2: `scan-and-push`**
+- **Trigger:** Runs only on pushes to the `master` branch, after `build-and-test` succeeds.
+- **Security:** Uses keyless authentication to Google Cloud via Workload Identity Federation.
+- **Actions:**
+  - Downloads and loads the Docker image artifact.
+  - **SAST Scan:** Uses **Trivy** to scan the container image for `CRITICAL` and `HIGH` severity vulnerabilities. A `.trivyignore` file is used to whitelist accepted CVEs.
+  - Pushes the image to **Google Artifact Registry** in the `europe-central2` region with a unique tag based on the Git commit SHA.
+
+#### **Stage 3: `provision-infrastructure`**
+- **Trigger:** Runs only on pushes to the `master` branch, after `scan-and-push` succeeds.
+- **Technology:** Uses **Terraform** to manage infrastructure.
+- **State Management:** Terraform state is stored remotely and securely in a **Google Cloud Storage bucket**, configured via the `GCS_BUCKET_NAME` secret.
+- **Actions:**
+  - Authenticates to Google Cloud.
+  - Runs `terraform apply` within the `terraform-gcp` directory to create or validate the following resources:
+    - A **Google Kubernetes Engine cluster** named `weather-app-gke`.
+    - The cluster is configured to use `pd-standard` disks to avoid SSD quota limits.
+    - Deletion protection is explicitly disabled (`deletion_protection = false`) for easy management in this non-production environment.
+
+#### **Stage 4: `deploy-application`**
+- **Trigger:** Runs only on pushes to the `master` branch, after `provision-infrastructure` succeeds.
+- **Actions:**
+  - Authenticates to Google Cloud and installs the `gke-gcloud-auth-plugin`.
+  - Connects `kubectl` to the GKE cluster.
+    - Replaces `IMAGE_PLACEHOLDER` with the full Artifact Registry image path and commit SHA.
+    - Replaces `API_KEY_PLACEHOLDER` with the `OPENWEATHERMAP_API_KEY` from GitHub Secrets.
+  - **Deployment:** Applies the updated Kubernetes manifests to the cluster:
+    -  Creates a Kubernetes `Secret` for the API key and a `Deployment` to run the application pods.
+
+### 2. Infrastructure and deployment (Google Cloud)
+
+#### **Terraform (`terraform-gcp/`)**
+- Provisions a GKE cluster and a node pool in the `europe-central2` region.
+- The configuration is parameterized using a `variables.tf` file.
+- Uses remote state management by storing the state in a Google Cloud bucket.
+#### **Kubernetes (`k8s/`)**
+- **`deployment.yaml`**:
+  - Defines a `Secret` to securely hold the OpenWeatherMap API key.
+  - Defines a `Deployment` to run two replicas of the weather app. The API key from the secret is passed to the pods as an environment variable (`OPENWEATHERMAP_API_KEY`).
+  - Defines a `Service` of type `LoadBalancer` to expose the application within the cluster.
+
+### 3. Application and containerization
+
+#### **Dockerfile**
+- A multi-stage `Dockerfile` is used for efficient and secure builds.
+- **Build & Test Stage:** Uses a Maven base image to build the Java application.
+- **Scan & Push Stage:** Uses a lightweight `amazoncorretto:17-alpine` base image.
+  - The container includes a shell script `check_env.sh` that verifies if the `WEATHER_APP_MONITORING` environment variable is set to `ACTIVE`.
+  - A cron job defined in `weather-app-cron` runs this script every hour, logging a warning to `stderr` if the check fails.
+  - An `entrypoint.sh` script starts the `crond` service and the Java application.
+
+### 4. Secrets management
+
+- **`OPENWEATHERMAP_API_KEY`**: Stored as a GitHub Secret and securely passed to the unit test stage and the Kubernetes deployment.
+- **`GCP_PROJECT_ID`**: Stored as a GitHub Secret and used by Terraform and the deployment job.
+- **`GCS_BUCKET_NAME`**: Stored as a GitHub Secret and used to configure the Terraform backend.
+- **`WORKLOAD_IDENTITY` & `SERVICE_ACCOUNT`**: Used for secure, keyless authentication between GitHub Actions and Google Cloud.
+
+## Logs from the weatherapp:
+
+### app.is.everything.ok set to false:
+
+![img.png](img.png)
+
+### env variable not set:
+![img_1.png](img_1.png)
+

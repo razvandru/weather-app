@@ -22,7 +22,7 @@ RUN chmod +x check_env.sh entrypoint.sh
 
 RUN crontab weather-app-cron
 
-ENV WEATHER_APP_MONITORING=DEACTIVATE
+ENV WEATHER_APP_MONITORING=ACTIVE
 
 EXPOSE 8080
 
